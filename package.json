@@ -1,5 +1,5 @@
 {
-  "name": "gas-sim",
+  "name": "gas-anim-1",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -19,6 +19,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-konva": "^19.0.5",
+    "serve": "^14.2.4",
     "tailwind-merge": "^3.3.0",
     "zustand": "^5.0.5"
   },

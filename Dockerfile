@@ -1,4 +1,4 @@
-FROM node:20 as base
+FROM node:20 AS base
 
 FROM base AS deps
 
@@ -26,8 +26,8 @@ USER node
 WORKDIR /package
 COPY --from=deps /package/node_modules /package/node_modules
 COPY --from=build /package/dist /package/dist
-ENV NODE_ENV production
-CMD ["node", "./dist/index.js"]
-EXPOSE 5173
+ENV NODE_ENV=production
+CMD ["npx", "serve", "-s", "dist"]
+EXPOSE 3000
 
 # TODO: test and debug Dockerfile
