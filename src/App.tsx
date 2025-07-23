@@ -210,7 +210,7 @@ function SimulationCanvas() {
 
   // 3) RENDER ONCE
   return (
-    <div className="flex-shrink-0 h-[580px] w-[580px] relative select-none">
+    <div className="flex-shrink-0 h-[580px] w-[580px] select-none">
       <Stage width={BOX_WIDTH + 80} height={BOX_HEIGHT + 80}>
         <Layer ref={layerRef}>
           <Rect
@@ -291,9 +291,53 @@ function ControlPanel() {
 
 function App() {
   return (
-    <div className="flex flex-nowrap items-start bg-black min-h-screen text-white font-sans p-10">
-      <SimulationCanvas />
-      <ControlPanel />
+    <div className="block">
+      <h1 className="pb-10">What's an ideal gas?</h1>
+      <div className="flex flex-nowrap items-start bg-black min-h-screen text-white font-sans p-10">
+        <SimulationCanvas />
+        <ControlPanel />
+      </div>
+      <div className="text-left">
+        <h2 className="pt-10 text-lg font-bold">Explanation</h2>
+        <p className="mt-2">
+          An ideal gas is a theoretical concept that makes real-world gases easy to model, because
+          ideal gases follow the neat "ideal gas law": pV = nRT. This model applies well to many real-world
+          gases, for example atmospheric gases at room temperature and pressure.
+        </p>
+        <p className="mt-2">
+           There are <b>7 key assumptions</b> that define an ideal gas:
+        </p>
+        <ul className="list-inside list-disc">
+          <li>A large number particles</li>
+          <li>The particles are identical</li>
+          <li>The particles are small: have a much smaller total volume/size than their container, or the space that the gas occupies</li>
+          <li>The particles follow Newton's laws of motion</li>
+          <li>The particles move randomly in all directions</li>
+          <li>Collisions (both between particles, and with the container's walls) are instantaneous and elastic</li>
+          <li>There are no forces between particles ("intermolecular forces"), except when they collide</li>
+        </ul>
+        <p className="mt-2">
+          The first 5 assumptions describe the <b>kinetic theory of gases</b>, which is the basic principle
+          underlying widely accepted models of gases today. This theory says that
+          gases are actually made of a large number of small particles - too small for us to see, and too
+          many to count. There are over 10^24 particles in a single gram of air! The ideas behind the
+          kinetic theory were gradually developed by many scientists in the 17th and 18th centuries,
+          after steam engines had made thermodynamics a valuable subject to study. The key figures who
+          finalised the theory were James Clerk Maxwell and Ludwig Boltzmann. The kinetic theory was
+          controversial at the time, because many scientists thought that gases were continuous substances
+          (ones that are infinitely divisible, and don't have a smallest element like a particle) - but it was influential because it provided
+          a way to link the laws of thermodynamics with Newton's fundamental laws of motion.
+        </p>
+        <p className="mt-2">
+          Clear experimental evidence for the kinetic theory came at the start of the 20th century,
+          when Albert Einstein and Marian Smoluckowski published papers that used kinetic theory to make
+          predictions about Brownian motion, and these predictions turned out to agree with experiments.
+          Although ideal gases can be described using kinetic theory, it can also be used to model some
+          ways that real-world gases deviate from ideal gases, for example condensing into a liquid.
+          However, kinetic theory starts to fail when quantum effects become significant, for example
+          in helium, which remains a gas at very low temperatures.
+        </p>
+      </div>
     </div>
   );
 }
