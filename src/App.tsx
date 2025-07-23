@@ -299,43 +299,57 @@ function App() {
       </div>
       <div className="text-left">
         <h2 className="pt-10 text-lg font-bold">Explanation</h2>
-        <p className="mt-2">
-          An ideal gas is a theoretical concept that makes real-world gases easy to model, because
+        <p className="mt-4">
+          An <b>ideal gas</b> is a theoretical concept that makes real-world gases easy to model, because
           ideal gases follow the neat "ideal gas law": pV = nRT. This model applies well to many real-world
-          gases, for example atmospheric gases at room temperature and pressure.
+          gases, for example atmospheric gases at room temperature and pressure. When we model gases,
+          we usually put them in a conceptual closed container, like the grey box above. Either the gas we are modelling is really enclosed in a
+          container (e.g. a syringe), or we are modelling a small part of a large volume of gas (e.g. the atmosphere),
+          and the walls of the container represent other parcels of gas in the large volume.
         </p>
-        <p className="mt-2">
-           There are <b>7 key assumptions</b> that define an ideal gas:
+        <p className="mt-4">
+           There are <b>8 key assumptions</b> that define an ideal gas:
         </p>
         <ul className="list-inside list-disc">
-          <li>A large number particles</li>
+          <li>A large number of particles</li>
           <li>The particles are identical</li>
-          <li>The particles are small: have a much smaller total volume/size than their container, or the space that the gas occupies</li>
+          <li>The particles are small: they have a much smaller total volume/size than their container, or the space that the gas occupies</li>
           <li>The particles follow Newton's laws of motion</li>
           <li>The particles move randomly in all directions</li>
-          <li>Collisions (both between particles, and with the container's walls) are instantaneous and elastic</li>
-          <li>There are no forces between particles ("intermolecular forces"), except when they collide</li>
+          <li>Collisions (both between particles, and with the container's walls) are instantaneous</li>
+          <li>Collisions are elastic</li>
+          <li>There are no forces between particles ("intermolecular forces"), except in the instant they collide</li>
         </ul>
-        <p className="mt-2">
+        <p className="mt-4">
           The first 5 assumptions describe the <b>kinetic theory of gases</b>, which is the basic principle
           underlying widely accepted models of gases today. This theory says that
           gases are actually made of a large number of small particles - too small for us to see, and too
           many to count. There are over 10^24 particles in a single gram of air! The ideas behind the
           kinetic theory were gradually developed by many scientists in the 17th and 18th centuries,
-          after steam engines had made thermodynamics a valuable subject to study. The key figures who
+          after steam engines had made <b>thermodynamics</b> a valuable subject to study. The key figures who
           finalised the theory were James Clerk Maxwell and Ludwig Boltzmann. The kinetic theory was
           controversial at the time, because many scientists thought that gases were continuous substances
           (ones that are infinitely divisible, and don't have a smallest element like a particle) - but it was influential because it provided
           a way to link the laws of thermodynamics with Newton's fundamental laws of motion.
         </p>
-        <p className="mt-2">
+        <p className="mt-4">
           Clear experimental evidence for the kinetic theory came at the start of the 20th century,
           when Albert Einstein and Marian Smoluckowski published papers that used kinetic theory to make
-          predictions about Brownian motion, and these predictions turned out to agree with experiments.
+          predictions about <b>Brownian motion</b>, and these predictions turned out to agree with experiments.
+        </p>
+        <p className="mt-4">
           Although ideal gases can be described using kinetic theory, it can also be used to model some
-          ways that real-world gases deviate from ideal gases, for example condensing into a liquid.
-          However, kinetic theory starts to fail when quantum effects become significant, for example
-          in helium, which remains a gas at very low temperatures.
+          types of <b>non-ideal gases</b>.
+          This means breaking some of the assumptions of an ideal gas.
+          For example, to model the way that gases condense into liquids, you would have to add
+          intermolecular forces back into the model.
+          As another example, when modelling what happens at very high pressure, you can no longer
+          assume that the total volume of the particles is much smaller than that of the container.
+        </p>
+        <p className="mt-4">
+          Kinetic theory starts to fail when quantum effects become significant, for example
+          in helium, which remains a gas at very low temperatures. To make accurate predictions about
+          helium at low temperatures, theoretical physicists have to model the gas in a different way.
         </p>
       </div>
     </div>

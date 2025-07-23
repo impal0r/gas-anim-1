@@ -24,8 +24,8 @@ This project was made using React.js, Vite, and Tailwind CSS. To set up a test e
     `pnpm install --frozen-lockfile`    
 5. Start the Node.js development server    
     `pnpm run dev`    
-6. Open the project files in your favourite editor, and open `http://localhost:5173` in your browser. The page should update automatically every time the code changes on disk. If it doesn't, just reload the page.
-7. If it doesn't work, you might need to change the `base` to `'/'` in `vite.config.ts`
+6. Open the project files in your favourite editor, and open `http://localhost:5173/gas-anim-1/` in your browser. The page should update automatically every time the code changes on disk. If it doesn't, just reload the page.
+7. You might need to change `base` in `vite.config.ts` before deploying. This setting influences the URL that the server will respond on, e.g. cahnging it to `'/'` will mean the dev server will be at `http://localhost:5173/`.
 
 ### Feedback
 
