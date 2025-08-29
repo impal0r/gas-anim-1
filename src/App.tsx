@@ -4,8 +4,9 @@ import { create } from "zustand";
 import planck from "planck";
 // import { Slider, Switch } from "@radix-ui/react-slider";
 import './App.css'
+// import { Queue } from "./queue.tsx"
 // Elixir errors is a custom utility library in this project
-import { ErrorBox, showError, debugAssert, } from "./elixir-errors.tsx"
+import { ErrorBox, showError, debugAssert } from "./elixir-errors.tsx"
 
 interface SliderParams {
   min: number;
@@ -26,6 +27,8 @@ const INITIAL_PARTICLE_NUMBER = 50
 const INITIAL_VELOCITY = 50; //all particles given this velocity, in a random direction
 const GRAVITY_FORCE = 100; //TODO: rename to be more precise
 const ATTRACTION_EPSILON = 100000;
+const PHYSICS_DT_SECONDS = 1/100;
+const PHYSICS_DT_MILLISECONDS = PHYSICS_DT_SECONDS * 1000;
 // control parameters
 const N_SLIDER_VALS: SliderParams = {min:1, max:MAX_PARTICLE_NUMBER, step:1, default: INITIAL_PARTICLE_NUMBER};
 const RADIUS_SLIDER_VALS: SliderParams = {min:2, max:12, step:0.1, default:6}; //pixels
@@ -33,10 +36,9 @@ const GRAVITY_SLIDER_VALS: SliderParams = {min:0, max:1, step:0.01, default:0}; 
 const CONSERV_SLIDER_VALS: SliderParams = {min:0.8, max:1.2, step:0.01, default:1}; //restitution coefficient (aka energy conservation)
 const INTERMOL_SLIDER_VALS: SliderParams = {min:0, max:1, step:0.01, default:0}; //fraction of max intermol force
 const INTERMOL_SCALE_SLIDER_VALS: SliderParams = {min:0.1, max:5, step:0.1, default:1}; //fraction of default
-const SPEED_SLIDER_VALS: SliderParams = {min:0.1, max:3, step:0.1, default:1}; //simulation seconds per second
+const SPEED_SLIDER_VALS: SliderParams = {min:0.1, max:10, step:0.1, default:1}; //simulation seconds per second
 
 //TODO: make the speed slider logarithmic
-
 
 // Store state with Zustand
 interface SimState {
@@ -55,7 +57,7 @@ interface SimState {
   // Other values mean the KE of each particle needs to be scaled by that ratio.
   // This value is set by the control panel when the + and - buttons are pressed,
   // and then read (and reset to 1) in the animation loop
-  requestedTempChange: number; 
+  requestedTempChange: number;
   // Setters
   togglePaused: () => void;
   setParticleNumber: (N_particles: number) => void;
@@ -127,6 +129,11 @@ function createCircle(world: planck.World, radius: number, restitution: number) 
 //   return doubleTotalKE / particles.length * 0.5;
 // }
 
+// interface PhysicsStep {
+//   frameTime: number, //milliseconds
+//   speed: number
+// }
+
 function SimulationCanvas() {
   // refs for world, bodies, layer & circles:
   const worldRef     = useRef<planck.World>(null);
@@ -164,8 +171,18 @@ function SimulationCanvas() {
     particlesRef.current = particles;
 
     // 2) THE SINGLE (recursive) ANIMATION LOOP
-    let rafId: number; // ID returned by requestAnimationFrame
-    const step = () => {
+    //ID returned by requestAnimationFrame, which can be used to cancel a frame
+    let rafId: number;
+    //previous frame's timestamp so we can work out the actual time between frames
+    let lastTimestamp: DOMHighResTimeStamp | null = null;
+    // //buffer to manage processing capacity for physics engine
+    // let stepQueueMaxSize = 5;
+    // const stepQueue: Queue<PhysicsStep> = new Queue<PhysicsStep>({initialCapacity:stepQueueMaxSize+1});
+    // debugAssert(stepQueueMaxSize >= 1, "stepQueueMaxSize should be a positive integer");
+    //time store, which frames add to and the physics simulation takes away from
+    let simTime = 0.0; //milliseconds
+    //function that is called each frame
+    const nextFrame = (timestamp: DOMHighResTimeStamp) => {
       const {
         isPaused,
         gravity,
@@ -242,44 +259,61 @@ function SimulationCanvas() {
         prevParticleNumber.current = particleNumber;
       }
 
-      // C) Gravity toggle (even if paused)
+      // C) Gravity selection (even if paused)
       if (gravity !== prevGravity.current) {
         world.setGravity(new planck.Vec2(0, gravity * GRAVITY_FORCE));
         prevGravity.current = gravity;
       }
+
+      // TODO: Implement temperature controls (boost/shrink KE of particles)
+      // TODO: Implement particle reset functionality (Random/Linear)
       
-      if (!isPaused) {
+      // physics simulation
+      if (!isPaused && lastTimestamp !== null) {
         redraw = true;
 
-        // TODO: Implement temperature controls (boost/shrink KE of particles)
-        // TODO: Implement intermolecular scale in the force calculation
-        // TODO: Implement particle reset functionality (Random/Linear)
+        let frameTime = timestamp - lastTimestamp;
+        // // use a buffer to manage processing capacity, in case the processor gets overloaded
+        // stepQueue.enqueue({frameTime:frameTime, speed:animationSpeed});
+        // debugAssert(stepQueueMaxSize >= 1, "stepQueueMaxSize should be a positive integer");
+        // while (stepQueue.length > stepQueueMaxSize) {
+        //   stepQueue.dequeue();
+        // }
+        // let currentStep = stepQueue.dequeue()!; //at this stage, stepQueue ought to be guaranteed to contain an element
 
-        // D) Intermolecular (hard‐core + attractive tail) (only if not paused)
-        if (intermolecular > 0) {
-          const sigma = prevRadius.current! * 2;
-          const r0 = sigma * 1.1;
-          const rc = sigma * 30;
-          for (let i = 0; i < particles.length; i++) {
-            for (let j = i + 1; j < particles.length; j++) {
-              const A = particles[i], B = particles[j];
-              const pA = A.getPosition(), pB = B.getPosition();
-              const dx = pB.x - pA.x, dy = pB.y - pA.y;
-              const dist = Math.hypot(dx, dy);
-              if (dist > r0 && dist < rc) {
-                const fMag = 4 * ATTRACTION_EPSILON * Math.pow(sigma / dist, 6) * intermolecular;
-                const fx = (dx / dist) * fMag, fy = (dy / dist) * fMag;
-                A.applyForce(new planck.Vec2( fx, fy), pA);
-                B.applyForce(new planck.Vec2(-fx,-fy), pB);
+        // run the physics engine forward in constant steps
+        simTime += frameTime * animationSpeed;
+        while (simTime > PHYSICS_DT_MILLISECONDS) {
+          simTime -= PHYSICS_DT_MILLISECONDS;
+          
+          // TODO: Implement intermolecular scale in the force calculation
+
+          // D) Intermolecular (hard‐core + attractive tail)
+          if (intermolecular > 0) {
+            const sigma = prevRadius.current! * 2;
+            const r0 = sigma * 1.1;
+            const rc = sigma * 30;
+            for (let i = 0; i < particles.length; i++) {
+              for (let j = i + 1; j < particles.length; j++) {
+                const A = particles[i], B = particles[j];
+                const pA = A.getPosition(), pB = B.getPosition();
+                const dx = pB.x - pA.x, dy = pB.y - pA.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist > r0 && dist < rc) {
+                  const fMag = 4 * ATTRACTION_EPSILON * Math.pow(sigma / dist, 6) * intermolecular;
+                  const fx = (dx / dist) * fMag, fy = (dy / dist) * fMag;
+                  A.applyForce(new planck.Vec2( fx, fy), pA);
+                  B.applyForce(new planck.Vec2(-fx,-fy), pB);
+                }
               }
             }
           }
-        }
 
-        // E) Step the world
-        let dt = 1/60 * animationSpeed;
-        world.step(dt);
+          // E) Step the world
+          world.step(PHYSICS_DT_SECONDS);
+        }
       }
+      lastTimestamp = timestamp;
 
       if (redraw) {
         // F) Imperatively update all 100 circles
@@ -299,10 +333,10 @@ function SimulationCanvas() {
       }
 
       // always re-schedule, even if paused
-      rafId = requestAnimationFrame(step);
+      rafId = requestAnimationFrame(nextFrame);
     };
 
-    step(); // recursion
+    nextFrame(performance.now()); // recursion
     return () => cancelAnimationFrame(rafId);
   }, []); // <- set the animation loop going: do this only once
 
