@@ -30,3 +30,7 @@ This project was made using React.js, Vite, and Tailwind CSS. To set up a test e
 ### Feedback
 
 I'm open to chat on Discord, please drop me a message and a friend request at the username `impal0r`, and mention "gas-anim-1" in the message.
+
+### Credits
+
+Thanks to Josep Vidal for his "Vital" template (https://vital.josepvidal.dev/).
