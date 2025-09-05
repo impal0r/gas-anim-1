@@ -716,60 +716,31 @@ function ControlPanel() {
 
 function ExplanationBox() {
   return(
-    <div className="text-left">
-      <h2 className="pt-10 text-lg font-bold">Explanation</h2>
-      <p className="mt-4">
-        An <b>ideal gas</b> is a theoretical concept that makes real-world gases easy to model, because
-        ideal gases follow the neat "ideal gas law": pV = nRT. This model applies well to many real-world
-        gases, for example atmospheric gases at room temperature and pressure. When we model gases,
-        we usually put them in a conceptual closed container, like the grey box above. Either the gas we are modelling is really enclosed in a
-        container (e.g. a syringe), or we are modelling a small part of a large volume of gas (e.g. the atmosphere),
-        and the walls of the container represent other parcels of gas in the large volume.
-      </p>
-      <p className="mt-4">
-          There are <b>8 key assumptions</b> that define an ideal gas:
-      </p>
-      <ul className="list-inside list-disc">
+    <div className="pt-10 text-left">
+      <h3>Introduction</h3>
+      <p>An <strong>ideal gas</strong> is a simplified theoretical model that helps us understand how real gases behave. It's useful because ideal gases follow comparatively simple, predictable rules like the "ideal gas law" (pV = nRT), which makes calculations much easier. This model applies well to many real-world gases, for example ordinary air at room temperature and pressure. When we model gases, we usually put them in a conceptual closed <strong>container</strong>, like the grey box above. Either the gas we are modelling is really enclosed in a container (like a syringe), or we are modelling a small part of a large volume of gas (like the atmosphere), and the walls of the container represent other parcels of gas in the large volume.</p>
+      <p>Since the 18th century, we know that gases are made up of a large number of small particles - there are over 10^24 particles in a single gram of air! This idea - that gases are made of an enormous number of small particles in chaotic motion - is known as the <strong>kinetic theory of gases</strong>.</p>
+      <h3>8 Key Assumptions</h3>
+      <p>For a collection of particles to behave like an ideal gas (i.e. follow the ideal gas law), it has to follow <strong>8 key assumptions</strong> or "rules". The first five assumptions describe all gases under kinetic theory, while the last 3 are key to ideal gases. When we call something an ideal gas, we are assuming that it follows all 8 rules:</p>
+      <ul>
         <li>A large number of particles</li>
         <li>The particles are identical</li>
         <li>The particles are small: they have a much smaller total volume/size than their container, or the space that the gas occupies</li>
-        <li>The particles follow Newton's laws of motion</li>
-        <li>The particles move randomly in all directions</li>
+        <li>The particles follow <strong>Newton's laws</strong> of motion</li>
+        <li>The particles are constantly moving randomly in all directions</li>
         <li>Collisions (both between particles, and with the container's walls) are instantaneous</li>
-        <li>Collisions are elastic</li>
+        <li>Collisions are elastic (i.e. energy is conserved)</li>
         <li>There are no forces between particles ("intermolecular forces"), except in the instant they collide</li>
       </ul>
-      <p className="mt-4">
-        The first 5 assumptions describe the <b>kinetic theory of gases</b>, which is the basic principle
-        underlying widely accepted models of gases today. This theory says that
-        gases are actually made of a large number of small particles - too small for us to see, and too
-        many to count. There are over 10^24 particles in a single gram of air! The ideas behind the
-        kinetic theory were gradually developed by many scientists in the 17th and 18th centuries,
-        after steam engines had made <b>thermodynamics</b> a valuable subject to study. The key figures who
-        finalised the theory were James Clerk Maxwell and Ludwig Boltzmann. The kinetic theory was
-        controversial at the time, because many scientists thought that gases were continuous substances
-        (ones that are infinitely divisible, and don't have a smallest element like a particle) - but it was influential because it provided
-        a way to link the laws of thermodynamics with Newton's fundamental laws of motion.
-      </p>
-      <p className="mt-4">
-        Clear experimental evidence for the kinetic theory came at the start of the 20th century,
-        when Albert Einstein and Marian Smoluckowski published papers that used kinetic theory to make
-        predictions about <b>Brownian motion</b>, and these predictions turned out to agree with experiments.
-      </p>
-      <p className="mt-4">
-        Although ideal gases can be described using kinetic theory, it can also be used to model some
-        types of <b>non-ideal gases</b>.
-        This means breaking some of the assumptions of an ideal gas.
-        For example, to model the way that gases condense into liquids, you would have to add
-        intermolecular forces back into the model.
-        As another example, when modelling what happens at very high pressure, you can no longer
-        assume that the total volume of the particles is much smaller than that of the container.
-      </p>
-      <p className="mt-4">
-        Kinetic theory starts to fail when quantum effects become significant, for example
-        in helium, which remains a gas at very low temperatures. To make accurate predictions about
-        helium at low temperatures, theoretical physicists have to model the gas in a different way.
-      </p>
+      <p>Having identical particles isn't always strictly required - for example, ordinary air contains different types of molecules (oxygen, nitrogen, etc.) but still behaves like an ideal gas. However, studying gases with just one type of particle is useful because it's simpler, and it's relatively easy to combine these simpler models to understand mixtures of gases. This is why most textbooks start with the assumption of a "pure gas" containing only one type of particle.</p>
+      <p>In reality, these assumptions don't have to be perfect: collisions can take a brief amount of time (they're not truly instantaneous), as long as collisions are much faster than the time particles spend flying freely between collisions. Similarly, weak intermolecular forces can exist as long as they're too small to significantly affect the gas pressure. Whether the ideal gas model is accurate enough depends on how precise your calculations need to be.</p>
+      <p>Gas particles are so incredibly small and numerous that they naturally behave chaotically. Even if we could somehow arrange them in a perfect pattern, tiny disturbances would quickly cause them to start moving randomly again. This means that gas particles will always end up moving randomly in all directions - a state called "thermal equilibrium". Most ideal gas studies assume the gas has already reached this balanced, chaotic state. (This may sound like a contradiction but it's true!)</p>
+      <h3>History</h3>
+      <p>The ideas behind the kinetic theory of gases were gradually developed by many scientists in the 17th and 18th centuries, after steam engines had made <strong>thermodynamics</strong> a valuable subject to study. The key figures who finalised the theory were James Clerk Maxwell and Ludwig Boltzmann. The kinetic theory was controversial at the time, because many scientists used to think that gases were continuous substances (ones that are infinitely divisible, and don't have a smallest element like a particle) - but it was influential because it provided a way to link the laws of thermodynamics with Newton's three fundamental laws of motion (<strong>Newton's Laws</strong>).</p>
+      <p>Decisive experimental evidence for the kinetic theory came at the start of the 20th century, when Albert Einstein and Marian Smoluckowski published papers that used kinetic theory to make predictions about <strong>Brownian motion</strong>, and these predictions turned out to agree with experiments.</p>
+      <h3>Limitations and Non-Ideal Gases</h3>
+      <p>Although ideal gases can always be described using kinetic theory, kinetic theory can also be used to model some types of <strong>non-ideal gases</strong>. This means breaking some of the assumptions of an ideal gas. For example, to model the way that gases condense into liquids, you would have to add intermolecular forces back into the model. Or, when modelling what happens at very high pressure, you can no longer assume that the total volume of the particles is much smaller than that of the container.</p>
+      <p>Kinetic theory starts to fail when quantum effects become significant, for example in helium, which remains a gas at very low temperatures. To make accurate predictions about helium at low temperatures, theoretical physicists have to model the gas in a different way.</p>
     </div>
   );
 }

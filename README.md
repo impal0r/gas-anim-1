@@ -1,8 +1,8 @@
-# Gas animation: what makes an ideal gas?
+# Gas animation: what's an ideal gas?
 
-This is an interactive applet that aims to show you what an "ideal gas" is, by showing you what it isn't. It's part of a developing project to improve A level physics teaching, and any constructive feedback is welcome.
+An interactive applet that aims to show you what an "ideal gas" is, by showing you what it isn't. It's part of a developing project to make high school physics more fun, and any constructive feedback is welcome.
 
-To see it in action: go to https://impal0r.github.io/gas-anim-1/
+See it in action: https://impal0r.github.io/gas-anim-1/
 
 ### Playing with the code
 
