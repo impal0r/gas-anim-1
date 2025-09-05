@@ -29,14 +29,16 @@ const GRAVITY_FORCE = 100; //TODO: rename to be more precise
 const ATTRACTION_EPSILON = 100000;
 const PHYSICS_DT_SECONDS = 1/100;
 const PHYSICS_DT_MILLISECONDS = PHYSICS_DT_SECONDS * 1000;
+const WEIGHT_RATIO = 20; // when non-identical, heavy particles are this much heavier
+const HEAVY_PARTICLES_FRACTION = 0.2; // when non-identical, this proportion of particles are heavy
 // control parameters
 const N_SLIDER_VALS: SliderParams = {min:1, max:MAX_PARTICLE_NUMBER, step:1, default: INITIAL_PARTICLE_NUMBER};
 const RADIUS_SLIDER_VALS: SliderParams = {min:2, max:12, step:0.1, default:6}; //pixels
 const GRAVITY_SLIDER_VALS: SliderParams = {min:0, max:1, step:0.01, default:0}; //fraction of max gravity
-const CONSERV_SLIDER_VALS: SliderParams = {min:0.8, max:1.2, step:0.01, default:1}; //restitution coefficient (aka energy conservation)
-const INTERMOL_SLIDER_VALS: SliderParams = {min:0, max:1, step:0.01, default:0}; //fraction of max intermol force
-const INTERMOL_SCALE_SLIDER_VALS: SliderParams = {min:0.1, max:5, step:0.1, default:1}; //fraction of default
-const SPEED_SLIDER_VALS: SliderParams = {min:0.1, max:10, step:0.1, default:1}; //simulation seconds per second
+const CONSERV_SLIDER_VALS: SliderParams = {min:0.5, max:1.2, step:0.01, default:1}; //restitution coefficient (aka energy conservation)
+const INTERMOL_SLIDER_VALS: SliderParams = {min:0, max:5, step:0.01, default:0}; //fraction of max intermol force
+const SPEED_SLIDER_VALS: SliderParams = {min:0.1, max:3, step:0.1, default:1}; //simulation seconds per second
+const INITIALLY_IDENTICAL = true;
 
 //TODO: make the speed slider logarithmic
 
@@ -47,10 +49,10 @@ interface SimState {
   radius: number;
   gravity: number;
   intermolecular: number;
+  lastIntermolecular: number;
   identicalParticles: boolean;
   lawsOfMotion: 'newton' | 'floating' | 'maze';
   collisionRestitution: number;
-  intermolecularScale: number;
   animationSpeed: number;
   positions: { x: number; y: number }[];
   //requestedTempChange: 1 means no change requested.
@@ -58,18 +60,27 @@ interface SimState {
   // This value is set by the control panel when the + and - buttons are pressed,
   // and then read (and reset to 1) in the animation loop
   requestedTempChange: number;
+  //requestedReset: 'random' or 'linear'
+  requestedReset: 'random' | 'linear' | null;
+  // isFreshLinearReset: true if paused and just did an ordered reset, false otherwise
+  isFreshLinearReset: boolean;
   // Setters
   togglePaused: () => void;
   setParticleNumber: (N_particles: number) => void;
   setRadius: (r: number) => void;
   setGravity: (g: number) => void;
   setIntermolecular: (im: number) => void;
+  enableIntermolecular: () => void;
+  disableIntermolecular: () => void;
   setIdenticalParticles: (identical: boolean) => void;
   setLawsOfMotion: (laws: 'newton' | 'floating' | 'maze') => void;
   setCollisionRestitution: (restitution: number) => void;
-  setIntermolecularScale: (scale: number) => void;
   setAnimationSpeed: (speed: number) => void;
   updatePositions: (positions: { x: number; y: number }[]) => void;
+  setRequestedTempChange: (value: number) => void;
+  requestReset: (type: 'random' | 'linear') => void;
+  clearRequestedReset: () => void;
+  setIsFreshLinearReset: (value: boolean) => void;
 }
 
 const useSimStore = create<SimState>((set) => ({
@@ -78,42 +89,63 @@ const useSimStore = create<SimState>((set) => ({
   radius: RADIUS_SLIDER_VALS.default,
   gravity: GRAVITY_SLIDER_VALS.default,
   intermolecular: INTERMOL_SLIDER_VALS.default,
-  identicalParticles: true,
+  lastIntermolecular: 1,//INTERMOL_SLIDER_VALS.default,
+  identicalParticles: INITIALLY_IDENTICAL,
   lawsOfMotion: 'newton' as const,
   collisionRestitution: CONSERV_SLIDER_VALS.default,
-  intermolecularScale: INTERMOL_SCALE_SLIDER_VALS.default,
   animationSpeed: SPEED_SLIDER_VALS.default,
   positions: [],
   requestedTempChange: 1,
+  requestedReset: null,
+  isFreshLinearReset: false,
   setParticleNumber: (N_particles) => set({ particleNumber: N_particles }),
   setRadius: (r) => set({ radius: r }),
   setGravity: (g) => set({ gravity: g }),
-  setIntermolecular: (intermol) => set({ intermolecular: intermol }),
+  setIntermolecular: (intermol) => set({ intermolecular: intermol, lastIntermolecular: intermol }),
+  enableIntermolecular: () => set((s) => ({intermolecular: s.lastIntermolecular, collisionRestitution: 1})),
+  disableIntermolecular: () => set({intermolecular: 0}),
   setIdenticalParticles: (identical) => set({ identicalParticles: identical }),
   setLawsOfMotion: (laws) => set({ lawsOfMotion: laws }),
   setCollisionRestitution: (restitution) => set({ collisionRestitution: restitution }),
-  setIntermolecularScale: (scale) => set({ intermolecularScale: scale }),
   setAnimationSpeed: (speed) => set({ animationSpeed: speed }),
-  togglePaused: () => set((s) => ({ isPaused: !s.isPaused })),
-  updatePositions: (positions) => set({ positions })
+  togglePaused: () => set((s) => ({ isPaused: !s.isPaused, isFreshLinearReset: s.isPaused ? false : s.isFreshLinearReset })),
+  setRequestedTempChange: (value) => set(() => ({requestedTempChange: value})),
+  updatePositions: (positions) => set({ positions }),
+  requestReset: (type) => set({requestedReset: type}),
+  clearRequestedReset: () => set({requestedReset: null}),
+  setIsFreshLinearReset: (value) => set({ isFreshLinearReset: value })
 }));
 
-function createCircle(world: planck.World, radius: number, restitution: number) : planck.Body {
-  // random position
-  const pos = new planck.Vec2(
-    Math.random() * (BOX_WIDTH - 2 * radius) + radius,
-    Math.random() * (BOX_HEIGHT - 2 * radius) + radius
-  );
-  // put it in the world
+// function to create a 
+function createCircle(world: planck.World, radius: number, restitution: number,
+                      pos: planck.Vec2 | null = null,
+                      velocity: planck.Vec2 | null = null,
+                      isHeavy: boolean = false) : planck.Body {
+  // if position and velocity are not given, create random ones
+  if (pos === null) {
+    // random position
+    pos = new planck.Vec2(
+      Math.random() * (BOX_WIDTH - 2 * radius) + radius,
+      Math.random() * (BOX_HEIGHT - 2 * radius) + radius
+    );
+  }
+  if (velocity === null) {
+    // seed a velocity: random direction and exactly INITIAL_VELOCITY in magnitude
+    // (doing it this way because it was easy to implement. the gas will quickly
+    //  reach thermodynamic equilibrium, where there is a spread of velocities,
+    //  in theory following the probability distribution called the
+    //  2D Maxwell-Boltzmann distribution)
+    const angle = Math.random() * 2 * Math.PI;
+    velocity = new planck.Vec2(Math.cos(angle), Math.sin(angle)).mul(INITIAL_VELOCITY);
+  }
+  // create a circular object and put it in the world
   const b = world.createDynamicBody(pos);
   b.createFixture(new planck.Circle(radius), {
-    density: 1, friction: 0, restitution: restitution
+    density: isHeavy ? WEIGHT_RATIO : 1, friction: 0, restitution: restitution
   });
-  // seed a velocity: random direction and exactly INITIAL_VELOCITY in magnitude
-  // (only doing it this way because it was easy to implement. the gas will quickly
-  //  reach thermodynamic equilibrium anyway)
-  const angle = Math.random() * 2 * Math.PI;
-  b.setLinearVelocity(new planck.Vec2(Math.cos(angle), Math.sin(angle)).mul(INITIAL_VELOCITY));
+  
+  b.setLinearVelocity(velocity);
+  b.setUserData({ isHeavy });
   return b;
 }
 
@@ -136,38 +168,77 @@ function createCircle(world: planck.World, radius: number, restitution: number) 
 
 function SimulationCanvas() {
   // refs for world, bodies, layer & circles:
-  const worldRef     = useRef<planck.World>(null);
-  const particlesRef    = useRef<planck.Body[]>([]);
-  const prevGravity  = useRef<number>(null);
+  const worldRef = useRef<planck.World>(null);
+  const particlesRef = useRef<planck.Body[]>([]);
+  const prevGravity = useRef<number>(null);
   const prevParticleNumber = useRef<number>(null);
-  const prevRadius   = useRef<number>(null);
+  const prevRadius = useRef<number>(null);
   const prevCollisionRestitution = useRef<number>(null);
-  const layerRef     = useRef<any>(null);
-  const circleRefs   = useRef<any[]>(Array(useSimStore.getState().particleNumber).fill(null));
+  const prevIdentialParticles = useRef<boolean>(null);
+  const layerRef = useRef<any>(null);
+  const circleRefs = useRef<any[]>(Array(useSimStore.getState().particleNumber).fill(null));
 
   useEffect(() => {
     // 1) INITIALIZE WORLD + BODIES ONCE
     const world = new planck.World();
     worldRef.current = world;
 
-    // walls
+    // set up walls
     const wall = { type: "static" } as planck.BodyDef;
     world.createBody(wall).createFixture(new planck.Edge(new planck.Vec2(0,0),       new planck.Vec2(BOX_WIDTH,0)));
     world.createBody(wall).createFixture(new planck.Edge(new planck.Vec2(0,BOX_HEIGHT), new planck.Vec2(BOX_WIDTH,BOX_HEIGHT)));
     world.createBody(wall).createFixture(new planck.Edge(new planck.Vec2(0,0),       new planck.Vec2(0,BOX_HEIGHT)));
     world.createBody(wall).createFixture(new planck.Edge(new planck.Vec2(BOX_WIDTH,0), new planck.Vec2(BOX_WIDTH,BOX_HEIGHT)));
 
-    // particles + random velocity
+    // function to remove all the particles from the world
+    let emptyParticles = () => {
+      let p = particles.pop();
+      while (p != null) {
+        world.destroyBody(p);
+        p = particles.pop();
+      }
+    };
+    // functions to add randomly placed particles in the world
+    let addRandomParticle = (radius: number, restitution: number, identicalParticles: boolean) => {
+      let isHeavy = true;
+      if (identicalParticles || Math.random() > HEAVY_PARTICLES_FRACTION) { isHeavy = false; }
+      particles.push(createCircle(world, radius, restitution, null, null, isHeavy));
+    };
+    let makeRandomParticles = (N: number, radius: number, restitution: number, identicalParticles: boolean) => {
+      for (let i = 0; i < N; i++) {
+        addRandomParticle(radius, restitution, identicalParticles);
+      }
+    };
+    // functions to add particles in a grid on the left all travelling to the right
+    let addLinearParticle = (current_N: number, radius: number, restitution: number, identicalParticles: boolean) => {
+      let vel = new planck.Vec2(INITIAL_VELOCITY, 0);
+      // positions in a grid, but add a little jitter so that they thermalize
+      let pos = new planck.Vec2(24 * (current_N % 5 + 1), 
+                                24 * (Math.floor(current_N / 5) + 1) - (current_N%7 == 0 ? 1 : 0));
+      let isHeavy = true;
+      if (identicalParticles || Math.random() > HEAVY_PARTICLES_FRACTION) { isHeavy = false; }
+      particles.push(createCircle(world, radius, restitution, pos, vel, isHeavy));
+    };
+    let makeLinearParticles = (N: number, radius: number, restitution: number, identicalParticles: boolean) => {
+      for (let i = 0; i < N; i++) {
+        addLinearParticle(i, radius, restitution, identicalParticles);
+      }
+    };
+    // TODO: just after a linear reset, if we are paused, any particles added with the
+    // Particle Number slider should follow the grid pattern (this will require an extra
+    // state tracking variable)
+
+    // initialise particles with random position and velocity
     const particles: planck.Body[] = [];
     const initialRadius = useSimStore.getState().radius;
     const initialParticleNumber = useSimStore.getState().particleNumber;
     const initialCollisionRestitution = useSimStore.getState().collisionRestitution;
+    const initialIdenticality = useSimStore.getState().identicalParticles;
+    makeRandomParticles(initialParticleNumber, initialRadius, initialCollisionRestitution, initialIdenticality);
     prevRadius.current = initialRadius;
     prevParticleNumber.current = initialParticleNumber;
     prevCollisionRestitution.current = initialCollisionRestitution;
-    for (let i = 0; i < initialParticleNumber; i++) {
-      particles.push(createCircle(world, initialRadius, initialCollisionRestitution));
-    }
+    prevIdentialParticles.current = initialIdenticality;
     particlesRef.current = particles;
 
     // 2) THE SINGLE (recursive) ANIMATION LOOP
@@ -190,15 +261,20 @@ function SimulationCanvas() {
         radius,
         particleNumber,
         collisionRestitution,
-        // intermolecularScale,
+        requestedTempChange,
+        setRequestedTempChange,
+        requestedReset,
+        clearRequestedReset,
+        identicalParticles,
+        isFreshLinearReset,
         // lawsOfMotion,
         animationSpeed } = useSimStore.getState();
       const world = worldRef.current!;
 
       let redraw = false;
 
-      // A) Radius change → rebuild fixtures (even if paused)
-      if (radius !== prevRadius.current) {
+      // A) Radius or collision restitution change -> rebuild fixtures (even if paused)
+      if (radius !== prevRadius.current || collisionRestitution !== prevCollisionRestitution.current) {
         redraw = true;
         particlesRef.current.forEach((body) => {
           // destroy existing fixtures
@@ -210,49 +286,31 @@ function SimulationCanvas() {
           }
           // create new ones with updated radius
           body.createFixture(new planck.Circle(radius), {
-            density: 1, friction: 0, restitution: prevCollisionRestitution.current!
-          });
-          body.resetMassData();
-        });
-        prevRadius.current = radius;
-      }
-
-      // A2) Collision restitution change → rebuild fixtures (even if paused)
-      if (collisionRestitution !== prevCollisionRestitution.current) {
-        redraw = true;
-        particlesRef.current.forEach((body) => {
-          // destroy existing fixtures
-          let f = body.getFixtureList();
-          while (f) {
-            const next = f.getNext();
-            body.destroyFixture(f);
-            f = next;
-          }
-          // create new ones with updated restitution
-          body.createFixture(new planck.Circle(prevRadius.current!), {
             density: 1, friction: 0, restitution: collisionRestitution
           });
           body.resetMassData();
         });
+        prevRadius.current = radius;
         prevCollisionRestitution.current = collisionRestitution;
       }
 
       // B) Change number of particles (even if paused)
       if (particleNumber != prevParticleNumber.current) {
         redraw = true;
-        const new_num = particleNumber;
-        const old_num = prevParticleNumber.current!;
-        if (new_num > old_num) {
+        const newNum = particleNumber;
+        const oldNum = prevParticleNumber.current!;
+        if (newNum > oldNum) {
           // create that many circles and add them to the particles list
-          for (let i = 0; i < new_num - old_num; i++) {
-            particles.push(createCircle(world, radius, collisionRestitution));
+          for (let i = 0; i < newNum - oldNum; i++) {
+            if (isFreshLinearReset) { addLinearParticle(oldNum + i, radius, collisionRestitution, identicalParticles); }
+            else { addRandomParticle(radius, collisionRestitution, identicalParticles); }
           }
         }
         else {
           // destroy the bodies in the planck.js world, and stop circles from displaying
-          for (let i = old_num - 1; i > new_num - 1; i--) {
+          for (let i = oldNum - 1; i > newNum - 1; i--) {
             world.destroyBody(particles.pop()!);
-            circleRefs.current[i].setAttrs({x: -100, y: -100});
+            circleRefs.current[i].setAttrs({x: -10000, y: -10000});
             //^maybe there's a better way but just putting them outside the canvas works
           }
         }
@@ -265,8 +323,77 @@ function SimulationCanvas() {
         prevGravity.current = gravity;
       }
 
-      // TODO: Implement temperature controls (boost/shrink KE of particles)
-      // TODO: Implement particle reset functionality (Random/Linear)
+      // D) Heat/cool the gas if requested from the UI (even if paused)
+      if (requestedTempChange != 1.0) {
+        let speedChange = Math.sqrt(requestedTempChange); //temperature propto KE propto speed^2
+        particlesRef.current.forEach((body) => {
+          body.setLinearVelocity(body.getLinearVelocity().mul(speedChange));
+        });
+        setRequestedTempChange(1.0);
+      }
+
+      // E) Reset particle positions and velocities if requested from the UI (even if paused)
+      if (requestedReset !== null) {
+        redraw = true;
+        emptyParticles();
+        if (requestedReset == 'random') {
+          makeRandomParticles(particleNumber, radius, collisionRestitution, identicalParticles);
+          useSimStore.getState().setIsFreshLinearReset(false);
+        }
+        else if (requestedReset == 'linear') {
+          makeLinearParticles(particleNumber, radius, collisionRestitution, identicalParticles);
+          // Set isFreshLinearReset to true only if we're paused
+          useSimStore.getState().setIsFreshLinearReset(isPaused);
+        }
+        else {
+          showError(`Error: invalid value of requestedReset in SimStore: "${requestedReset}"`);
+        }
+        clearRequestedReset();
+      }
+
+      // F) Change between identical and non-identical particles (even if paused)
+      if (prevIdentialParticles.current != identicalParticles) {
+        redraw = true;
+        if (!identicalParticles) {
+          // Make 20% of particles heavy ("WEIGHT_RATIO"x mass) and orange
+          const heavyCount = Math.floor(particles.length * HEAVY_PARTICLES_FRACTION);
+          // Fisher-Yates shuffle for proper randomization
+          const indices = [...Array(particles.length).keys()];
+          for (let i = indices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [indices[i], indices[j]] = [indices[j], indices[i]];
+          }
+          
+          for (let i = 0; i < heavyCount; i++) {
+            const particle = particles[indices[i]];
+            // Rebuild fixture with "WEIGHT_RATIO"x density to make it heavy
+            let fixture = particle.getFixtureList();
+            if (fixture) {
+              const shape = fixture.getShape();
+              const restitution = fixture.getRestitution();
+              particle.destroyFixture(fixture);
+              particle.createFixture(shape, {density: WEIGHT_RATIO, friction: 0, restitution: restitution});
+              particle.resetMassData();
+              // Mark particle as heavy so we can paint it orange in the drawing code
+              particle.setUserData({ isHeavy: true });
+            }
+          }
+        } else {
+          // Reset all particles to identical (density = 1, not heavy)
+          particles.forEach(particle => {
+            let fixture = particle.getFixtureList();
+            if (fixture) {
+              const shape = fixture.getShape();
+              const restitution = fixture.getRestitution();
+              particle.destroyFixture(fixture);
+              particle.createFixture(shape, {density: 1, friction: 0, restitution: restitution});
+              particle.resetMassData();
+              particle.setUserData({ isHeavy: false });
+            }
+          });
+        }
+        prevIdentialParticles.current = identicalParticles;
+      }
       
       // physics simulation
       if (!isPaused && lastTimestamp !== null) {
@@ -285,14 +412,14 @@ function SimulationCanvas() {
         simTime += frameTime * animationSpeed;
         while (simTime > PHYSICS_DT_MILLISECONDS) {
           simTime -= PHYSICS_DT_MILLISECONDS;
-          
-          // TODO: Implement intermolecular scale in the force calculation
 
-          // D) Intermolecular (hard‐core + attractive tail)
+          // TODO: different laws of motion
+
+          // F) Intermolecular: hard‐core + attractive tail (only if unpaused)
           if (intermolecular > 0) {
             const sigma = prevRadius.current! * 2;
             const r0 = sigma * 1.1;
-            const rc = sigma * 30;
+            const rc = sigma * 20;
             for (let i = 0; i < particles.length; i++) {
               for (let j = i + 1; j < particles.length; j++) {
                 const A = particles[i], B = particles[j];
@@ -309,26 +436,30 @@ function SimulationCanvas() {
             }
           }
 
-          // E) Step the world
+          // G) Step the world (only if unpaused)
           world.step(PHYSICS_DT_SECONDS);
         }
       }
       lastTimestamp = timestamp;
 
       if (redraw) {
-        // F) Imperatively update all 100 circles
+        // H) Imperatively update all 100 circles
         particlesRef.current.forEach((b, i) => {
           const p = b.getPosition();
           const c = circleRefs.current[i];
           if (c) {
+            const userData = b.getUserData() as { isHeavy?: boolean } | null;
+            const isHeavy = userData?.isHeavy || false;
             c.setAttrs({
               x: p.x + BOX_X_INSET,
               y: p.y + BOX_Y_INSET,
-              radius: prevRadius.current
+              radius: prevRadius.current,
+              fill: isHeavy ? "#ff8800" : "#ccc",
+              stroke: isHeavy ? "#ffaa44" : "#fff"
             });
           }
         });
-        // G) Single batch draw
+        // J) Single batch draw
         layerRef.current?.batchDraw();
       }
 
@@ -350,14 +481,15 @@ function SimulationCanvas() {
             width={BOX_WIDTH} height={BOX_HEIGHT}
             cornerRadius={20}
             fill="#111" stroke="#888" strokeWidth={2}
-          />
+          /> 
           {Array.from({ length: MAX_PARTICLE_NUMBER }).map((_, i) => (
             <Circle
               key={i}
               ref={node => { circleRefs.current[i] = node; }}
-              // NO radius/x/y in props; they are set by the script each step
+              // no radius/x/y in static properties; they are set by the script each step
               fill="#ccc"
               stroke="#fff"
+              // TODO: make fill and stroke dynamic, so that we can implement non-idential particles
             />
           ))}
         </Layer>
@@ -377,18 +509,21 @@ function ControlPanel() {
     setGravity,
     intermolecular,
     setIntermolecular,
+    enableIntermolecular,
+    disableIntermolecular,
     isPaused: paused,
     togglePaused,
     identicalParticles,
     setIdenticalParticles,
     lawsOfMotion,
-    setLawsOfMotion,
+    // setLawsOfMotion,
     collisionRestitution,
     setCollisionRestitution,
-    intermolecularScale,
-    setIntermolecularScale,
     animationSpeed,
-    setAnimationSpeed
+    setAnimationSpeed,
+    requestedTempChange,
+    setRequestedTempChange,
+    requestReset
   } = useSimStore();
 
   // These assertions should only run once at startup
@@ -403,15 +538,29 @@ function ControlPanel() {
       `Intermolecular force strength in SimState (${intermolecular}) should match value on slider (${INTERMOL_SLIDER_VALS.default})`);
     debugAssert(collisionRestitution == CONSERV_SLIDER_VALS.default,
       `Energy conservation in SimState (${collisionRestitution}) should match value on slider (${CONSERV_SLIDER_VALS.default})`);
-    debugAssert(intermolecularScale == INTERMOL_SCALE_SLIDER_VALS.default,
-      `Intermolecular force scale in SimState (${intermolecularScale}) should match value on slider (${INTERMOL_SCALE_SLIDER_VALS.default})`);
     debugAssert(animationSpeed == SPEED_SLIDER_VALS.default,
       `Animation speed in SimState (${animationSpeed}) should match value on slider (${SPEED_SLIDER_VALS.default})`);
     controlpanelhasrun = true;
   }
 
   return (
-    <div className="flex flex-col gap-4 ml-8 mt-10 text-white">
+    <div className="flex flex-col text-left gap-4 ml-8 mt-10 text-white">
+      <div>
+        <div className="flex gap-2 mt-1">
+          <span className="text-sm">Reset Particles: </span>
+          <button
+            onClick={() => requestReset('random')}
+            className="px-3 py-1 rounded text-sm">
+            Random
+          </button>
+          <button
+            onClick={() => requestReset('linear')}
+            className="px-3 py-1 rounded text-sm">
+            Ordered
+          </button>
+        </div>
+      </div>
+
       <div>
         <label className="text-sm">Particle Number </label>
         <input
@@ -425,15 +574,6 @@ function ControlPanel() {
       </div>
       
       <div>
-        <input
-          type="checkbox"
-          checked={identicalParticles}
-          onChange={(e) => setIdenticalParticles(e.target.checked)}
-          className="ml-2" />
-        <label className="text-sm"> Identical Particles</label>
-      </div>
-      
-      <div>
         <label className="text-sm">Particle Size </label>
         <input
           type="range"
@@ -444,37 +584,27 @@ function ControlPanel() {
           onChange={(e) => setRadius(Number(e.target.value))}
           className="w-48" />
       </div>
-      
+
       <div>
-        <div className="flex gap-2 mt-1">
-          <span className="text-sm">Reset Particles: </span>
-          <button
-            onClick={() => {
-              // TODO: Implement random particle reset
-            }}
-            className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm">
-            Random
-          </button>
-          <button
-            onClick={() => {
-              // TODO: Implement linear particle reset
-            }}
-            className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm">
-            Linear
-          </button>
-        </div>
+        <input
+          type="checkbox"
+          checked={identicalParticles}
+          onChange={(e) => setIdenticalParticles(e.target.checked)}
+          className="ml-2" />
+        <label className="text-sm"> Identical Particles</label>
       </div>
       
       <div>
-        <label className="text-sm">Laws of Motion</label>
-        <select
+        <label className="text-sm">Laws of Motion: </label>
+        {/* <select
           value={lawsOfMotion}
           onChange={(e) => setLawsOfMotion(e.target.value as 'newton' | 'floating' | 'maze')}
-          className="ml-2 bg-gray-800 text-white px-2 py-1 rounded">
+          className="ml-2 bg-gray-900 text-white px-2 py-1 rounded">
           <option value="newton">Newton</option>
           <option value="floating">Floating</option>
           <option value="maze">Maze</option>
-        </select>
+        </select> */}
+        <label>Newtonian</label>
       </div>
       
       <div>
@@ -488,11 +618,11 @@ function ControlPanel() {
           onChange={(e) => setGravity(Number(e.target.value))}
           className="w-48"
           disabled={lawsOfMotion !== 'newton'} />
-        <span className="ml-2">{gravity.toFixed(2)}</span>
+        {/* <span className="ml-2">{gravity.toFixed(2)}</span> */}
       </div>
       
       <div>
-        <label className="text-sm">Collision Energy Conservation </label>
+        <label className="text-sm">Collision Restitution </label>
         <input
           type="range"
           min={CONSERV_SLIDER_VALS.min}
@@ -501,15 +631,15 @@ function ControlPanel() {
           value={collisionRestitution}
           onChange={(e) => setCollisionRestitution(Number(e.target.value))}
           className="w-48"
-          disabled={intermolecular > 0} />
-        <span className="ml-2">{collisionRestitution.toFixed(2)}</span>
+          disabled={intermolecular > 0 || lawsOfMotion !== 'newton'} />
+        <span className="ml-2">{collisionRestitution.toFixed(2)}{collisionRestitution==1 ? " (elastic)" : ""}</span>
       </div>
       
       <div>
         <input
           type="checkbox"
           checked={intermolecular > 0}
-          onChange={(e) => setIntermolecular(e.target.checked ? 0.5 : 0)}
+          onChange={(e) => e.target.checked ? enableIntermolecular() : disableIntermolecular()}
           className="ml-2"
           disabled={lawsOfMotion !== 'newton'} />
         <label className="text-sm"> Enable Intermolecular Forces</label>
@@ -523,24 +653,15 @@ function ControlPanel() {
           max={INTERMOL_SLIDER_VALS.max}
           step={INTERMOL_SLIDER_VALS.step}
           value={intermolecular}
-          onChange={(e) => setIntermolecular(Number(e.target.value))}
+          onChange={(e) => {
+            if (intermolecular == 0 && Number(e.target.value) > 0) {
+              setCollisionRestitution(1.0);
+            }
+            setIntermolecular(Number(e.target.value));
+          }}
           className="w-48"
           disabled={lawsOfMotion !== 'newton'} />
-        <span className="ml-2">{intermolecular.toFixed(2)}</span>
-      </div>
-      
-      <div>
-        <label className="text-sm">Intermolecular Forces Scale </label>
-        <input
-          type="range"
-          min={INTERMOL_SCALE_SLIDER_VALS.min}
-          max={INTERMOL_SCALE_SLIDER_VALS.max}
-          step={INTERMOL_SCALE_SLIDER_VALS.step}
-          value={intermolecularScale}
-          onChange={(e) => setIntermolecularScale(Number(e.target.value))}
-          className="w-48"
-          disabled={lawsOfMotion !== 'newton'} />
-        <span className="ml-2">{intermolecularScale.toFixed(1)}</span>
+        {/* <span className="ml-2">{intermolecular.toFixed(2)}</span> */}
       </div>
       
       <div>
@@ -561,14 +682,16 @@ function ControlPanel() {
           <label className="text-sm">Temperature</label>
           <button
             onClick={() => {
-              // TODO: Implement temperature decrease - shrink KE of each particle
+              // request the main loop to skrink KE of particles
+              setRequestedTempChange(requestedTempChange / 1.2)
             }}
-            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded">
+            className="px-3 py-1 bg-blue-600 dark:bg-blue-600 hover:bg-blue-700 rounded">
             -
           </button>
           <button
             onClick={() => {
-              // TODO: Implement temperature increase - boost KE of each particle
+              // request main loop to increase KE of particles
+              setRequestedTempChange(requestedTempChange * 1.2)
             }}
             className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded">
             +

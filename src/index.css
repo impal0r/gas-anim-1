@@ -72,24 +72,39 @@ h1 {
   line-height: 1.1;
 }
 
-button {
+/* Default button styles - only apply if specific Tailwind classes aren't present */
+button:not([class*="rounded"]) {
   border-radius: 8px;
-  border: 1px solid transparent;
+}
+button:not([class*="border-"]) {
+  border: 2px solid transparent;
+}
+button:not([class*="px-"]):not([class*="py-"]):not([class*="p-"]) {
   padding: 0.6em 1.2em;
+}
+button:not([class*="text-"]) {
   font-size: 1em;
+}
+button:not([class*="font-"]) {
   font-weight: 500;
   font-family: inherit;
+}
+button:not([class*="bg-"]) {
   background-color: #1a1a1a;
+}
+button:not([class*="bg-"]):hover {
+  background-color: #151515;
+}
+button {
   cursor: pointer;
   transition: border-color 0.25s;
 }
-button:hover {
-  border-color: #646cff;
+button:not([class*="border-"]):not([class*="hover:border-"]):active {
+  border: 2px solid rgba(255, 255, 255, 0.5);
 }
-button:focus,
-button:focus-visible {
+/* button:active {
   outline: 4px auto -webkit-focus-ring-color;
-}
+} */
 
 @media (prefers-color-scheme: light) {
   :root {
@@ -99,7 +114,7 @@ button:focus-visible {
   a:hover {
     color: #747bff;
   }
-  button {
+  button:not([class*="bg-"]) {
     background-color: #f9f9f9;
   }
 }
